@@ -1,6 +1,7 @@
 import argparse
 import openmeteo_requests
 import requests_cache
+import requests
 from retry_requests import retry
 import datetime
 
@@ -11,26 +12,26 @@ weather_code = {
     3 : "Mainly clear, partly cloudy, and overcast",
     45 : "Fog and depositing rime fog",
     48 : "Fog and depositing rime fog",
-    51 : "Drizzle: Light, moderate, and dense intensity",
-    53 : "Drizzle: Light, moderate, and dense intensity",
-    55 : "Drizzle: Light, moderate, and dense intensity",
-    56 : "Freezing Drizzle: Light and dense intensity",
-    57 : "Freezing Drizzle: Light and dense intensity",
-    61 : "Rain: Slight, moderate and heavy intensity",
-    63 : "Rain: Slight, moderate and heavy intensity",
-    65 : "Rain: Slight, moderate and heavy intensity",
-    66 : "Freezing Rain: Light and heavy intensity",
-    67 : "Freezing Rain: Light and heavy intensity",
-    71 : "Snow fall: Slight, moderate, and heavy intensity",
-    73 : "Snow fall: Slight, moderate, and heavy intensity",
-    75 : "Snow fall: Slight, moderate, and heavy intensity",
+    51 : "Drizzle - Light, moderate, and dense intensity",
+    53 : "Drizzle - Light, moderate, and dense intensity",
+    55 : "Drizzle - Light, moderate, and dense intensity",
+    56 : "Freezing Drizzle - Light and dense intensity",
+    57 : "Freezing Drizzle - Light and dense intensity",
+    61 : "Rain - Slight, moderate and heavy intensity",
+    63 : "Rain - Slight, moderate and heavy intensity",
+    65 : "Rain - Slight, moderate and heavy intensity",
+    66 : "Freezing Rain - Light and heavy intensity",
+    67 : "Freezing Rain - Light and heavy intensity",
+    71 : "Snow fall - Slight, moderate, and heavy intensity",
+    73 : "Snow fall - Slight, moderate, and heavy intensity",
+    75 : "Snow fall - Slight, moderate, and heavy intensity",
     77 : "Snow grains",
-    80 : "Rain showers: Slight, moderate, and violent",
-    81 : "Rain showers: Slight, moderate, and violent",
-    82 : "Rain showers: Slight, moderate, and violent",
+    80 : "Rain showers - Slight, moderate, and violent",
+    81 : "Rain showers - Slight, moderate, and violent",
+    82 : "Rain showers - Slight, moderate, and violent",
     85 : "Snow showers slight and heavy",
     86 : "Snow showers slight and heavy",
-    95 : "Thunderstorm: Slight or moderate",
+    95 : "Thunderstorm - Slight or moderate",
     96 : "Thunderstorm with slight and heavy hail",
     99 : "Thunderstorm with slight and heavy hail"
 }
@@ -46,13 +47,11 @@ def main():
     parser_city.add_argument('-name', '--name', required=True, help='Name of the city.')
     args = parser.parse_args()
     if args.command == "coordinates" :
-        forecast_by_coordinates(args)
+        forecast_by_coordinates(args.latitude, args.longitude)
     elif args.command == "city" :
         forecast_by_city(args)
 
-def forecast_by_coordinates(args):
-    latitude = args.latitude
-    longitude = args.longitude
+def forecast_by_coordinates(latitude, longitude):
     openmeteo = setup_open_meteo_api()
     url = "https://api.open-meteo.com/v1/forecast"
     params = {
@@ -64,7 +63,7 @@ def forecast_by_coordinates(args):
     try:
         responses = openmeteo.weather_api(url, params = params)
         response = responses[0]
-        print(f"Coordinates: {response.Latitude()}°N {response.Longitude()}°E")
+        print(f"Coordinates: {response.Latitude()} {response.Longitude()}")
         print(f"Elevation: {response.Elevation()} m asl")
         print(f"Timezone difference to GMT+0: {response.UtcOffsetSeconds()}s")
 
@@ -91,7 +90,27 @@ def forecast_by_coordinates(args):
     
 
 def forecast_by_city(args):
-    print("")
+    city_name = args.name
+    url = "https://geocoding-api.open-meteo.com/v1/search"
+    params = {
+            "name": city_name,
+            "count" : 1
+        }
+    try:
+        response = requests.get(url, params=params)
+        response.raise_for_status()
+        data = response.json()
+        if "results" in data and len(data["results"]) > 0:
+            location = data["results"][0]
+            latitude = location['latitude']
+            longitude = location['longitude']
+            print(f"Weather forecast for {city_name}")
+            forecast_by_coordinates(latitude, longitude)
+        else:
+            print(f"City {city_name} was not found.")
+    except Exception as e:
+        print(f"Error fetching data: {e}")
+    
 
 def setup_open_meteo_api():
     cache_session = requests_cache.CachedSession('.cache', expire_after = 3600)
